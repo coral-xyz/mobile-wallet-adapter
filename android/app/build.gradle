@@ -151,6 +151,9 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.7.0")
+    
+    implementation("com.solanamobile:mobile-wallet-adapter-walletlib:1.1.0")
 
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
 
