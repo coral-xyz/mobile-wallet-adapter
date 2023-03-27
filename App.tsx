@@ -1,4 +1,4 @@
-import {Keypair, Signer} from '@solana/web3.js';
+import {Keypair} from '@solana/web3.js';
 import React, {useState, useEffect} from 'react';
 import {
   BackHandler,
@@ -8,6 +8,9 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import {
+  SafeAreaProvider,
+} from 'react-native-safe-area-context';
 
 import MainScreen from './src/MainScreen';
 import LoadingScreen from './src/LoadingScreen';
@@ -101,12 +104,14 @@ export default function App() {
   }
 
   return (
+    <SafeAreaProvider>
       <View>
         {/* TODO: should put the intent url somewhere else */
           intentUrl && intentUrl.startsWith("solana-wallet:/v1/associate/local") ?
             getComponent(event) : <MainScreen />
         }
       </View>
+    </SafeAreaProvider>
     );
 }
 

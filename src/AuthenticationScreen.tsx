@@ -1,4 +1,4 @@
-import { PublicKey, Keypair } from '@solana/web3.js';
+import { Keypair } from '@solana/web3.js';
 import React, {useEffect, useState} from 'react';
 import {NativeModules, Platform, StyleSheet, View} from 'react-native';
 import {Button, Divider, Text} from 'react-native-paper';
