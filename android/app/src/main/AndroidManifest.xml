@@ -25,7 +25,7 @@
       <activity
         android:name=".MobileWalletAdapterActivity"
         android:launchMode="singleTask"
-        android:theme="@style/Theme.MobileWallletAdapter.BottomSheet"
+        android:theme="@style/Theme.MobileWalletAdapter.BottomSheet"
         android:exported="true">
         <!-- Default solana-wallet URI from a browser or native dapp -->
         <intent-filter android:order="1">
