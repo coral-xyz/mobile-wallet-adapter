@@ -10,13 +10,12 @@ import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.soloader.SoLoader
-import com.examplewallet.newarchitecture.MainApplicationReactNativeHost
+import com.mobilewalletadapterreactnative.MobileWalletAdapterReactNativePackage
 import java.lang.reflect.InvocationTargetException
 import java.util.List
 
 class MainApplication : Application(), ReactApplication {
 
-  private val mNewArchitectureNativeHost: ReactNativeHost = MainApplicationReactNativeHost(this)
   private val mReactNativeHost: ReactNativeHost = object : ReactNativeHost(this) {
     override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
     override protected fun getJSMainModuleName(): String? = "index"
@@ -24,16 +23,11 @@ class MainApplication : Application(), ReactApplication {
     override protected isHermesEnabled(): Boolean = BuildConfig.IS_HERMES_ENABLED
     override protected fun getPackages() = PackageList(this).getPackages().apply {
       // Packages that cannot be autolinked yet can be added manually here, for example:
-      add(ExampleWalletPackage())
+      add(MobileWalletAdapterReactNativePackage())
     }
   }
 
-  override fun getReactNativeHost(): ReactNativeHost =
-    if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
-      mNewArchitectureNativeHost
-    } else {
-      mReactNativeHost
-    }
+  override fun getReactNativeHost(): ReactNativeHost = mReactNativeHost
 
   override fun onCreate() {
     super.onCreate()
@@ -58,7 +52,7 @@ class MainApplication : Application(), ReactApplication {
         try {
           /* We use reflection here to pick up the class that initializes Flipper,
           since Flipper library is not available in release mode */
-          val aClass = Class.forName("com.examplewallet.ReactNativeFlipper")
+          val aClass = Class.forName("com.mobilewalletadapterreactnative.ReactNativeFlipper")
           aClass
             .getMethod(
               "initializeFlipper",
