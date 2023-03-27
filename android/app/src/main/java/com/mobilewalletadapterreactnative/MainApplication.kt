@@ -10,17 +10,15 @@ import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.soloader.SoLoader
-import com.mobilewalletadapterreactnative.MobileWalletAdapterReactNativePackage
 import java.lang.reflect.InvocationTargetException
-import java.util.List
 
 class MainApplication : Application(), ReactApplication {
 
   private val mReactNativeHost: ReactNativeHost = object : ReactNativeHost(this) {
     override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
     override protected fun getJSMainModuleName(): String? = "index"
-    override protected isNewArchEnabled(): Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
-    override protected isHermesEnabled(): Boolean = BuildConfig.IS_HERMES_ENABLED
+//    override protected isNewArchEnabled(): Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+//    override protected isHermesEnabled(): Boolean = BuildConfig.IS_HERMES_ENABLED
     override protected fun getPackages() = PackageList(this).getPackages().apply {
       // Packages that cannot be autolinked yet can be added manually here, for example:
       add(MobileWalletAdapterReactNativePackage())
