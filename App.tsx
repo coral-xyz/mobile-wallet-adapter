@@ -5,6 +5,7 @@ import {
   Linking,
   NativeEventEmitter,
   NativeModules,
+  StyleSheet,
   View,
 } from 'react-native';
 
@@ -102,14 +103,24 @@ export default function App() {
     return <LoadingScreen />;
   }
 
+  const shouldRenderBottomsheet: boolean = intentUrl !== null && intentUrl.startsWith("solana-wallet:/v1/associate/local")
   return (
     <SafeAreaProvider>
-      <View>
+      <View style={shouldRenderBottomsheet ? styles.bottomSheet : {}}>
         {/* TODO: should put the intent url somewhere else */
-          intentUrl && intentUrl.startsWith("solana-wallet:/v1/associate/local") ?
+          shouldRenderBottomsheet ?
             getComponent(event) : <MainScreen />
         }
       </View>
     </SafeAreaProvider>
     );
 }
+
+const styles = StyleSheet.create({
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+});
