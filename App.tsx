@@ -1,118 +1,115 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import {Keypair } from '@solana/web3.js';
+import React, {useState, useEffect} from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
+  BackHandler,
+  Linking,
+  NativeEventEmitter,
+  NativeModules,
   View,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import MainScreen from './screens/MainScreen';
+import LoadingScreen from './screens/LoadingScreen';
+import AuthenticationScreen from './screens/AuthenticationScreen';
+import SignPayloadsScreen from './screens/SignPayloadsScreen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+function initMWA(url: string) {
+  NativeModules.WalletLib.createScenario("MobileWalletAdapterReactNative", url, (result, message) => {});
 }
 
-function App(): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+const useLaunchURL = () => {
+  const [url, setUrl] = useState<string | null>(null);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  useEffect(() => {
+    const getUrlAsync = async () => {
+      // Get the intent link used to open the app
+      const initialUrl = await Linking.getInitialURL();
+      setUrl(initialUrl);
+
+      // this should be dealt with elsewhere, but this is the only place where it works rn
+      if (initialUrl && initialUrl.startsWith("solana-wallet:/v1/associate/local")) {
+        initMWA(initialUrl);
+      }
+    };
+
+    getUrlAsync();
+  }, []);
+
+  return {url};
+};
+
+const useWallet = () => {
+  const [keypair, setKeypair] = React.useState<Keypair | null>(null);
+
+  React.useEffect(() => {
+    const generateKeypair = async () => {
+      const keypair = await Keypair.generate();
+      setKeypair(keypair);
+    };
+
+    generateKeypair();
+  }, []);
+
+  return {wallet: keypair};
+};
+
+export enum MobileWalletAdapterServiceEventType {
+  SignTransactions = 'SIGN_TRANSACTIONS',
+  SignMessages = 'SIGN_MESSAGES',
+  SessionTerminated = 'SESSION_TERMINATED',
+  LowPowerNoConnection = 'LOW_POWER_NO_CONNECTION',
+  AuthorizeDapp = 'AUTHORIZE_DAPP',
+  ReauthorizeDapp = 'REAUTHORIZE_DAPP'
+};
+
+export default function App() {
+  const {url: intentUrl} = useLaunchURL();
+  const {wallet} = useWallet()
+  const [event, setEvent] = useState<any | null>(null);
+  useEffect(() => {
+    const eventEmitter = new NativeEventEmitter(NativeModules.MwaWalletLibModule);
+    eventEmitter.removeAllListeners("MobileWalletAdapterServiceEvent");
+    eventEmitter.addListener("MobileWalletAdapterServiceEvent", (newEvent) => {
+      NativeModules.WalletLib.log("MWA Event: " + newEvent.type);
+      if (!(newEvent?.type === "SESSION_TERMINATED" && event?.type === "SESSION_TERMINATED")) {
+        setEvent(newEvent);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    // exit when MWA session ends
+    // it would be better if the app went to the background rather than fully exiting, but seems 
+    // this will need to be done in android. We can expose a method in the mwa module to navigate up
+    if (event?.type === "SESSION_TERMINATED") { 
+      setEvent(null);
+      setTimeout(() => {BackHandler.exitApp();}, 200);
+    }
+  }, [event]);
+
+  function getComponent(event) {
+    switch(event?.type) {
+      case MobileWalletAdapterServiceEventType.SignTransactions:
+      case MobileWalletAdapterServiceEventType.SignMessages:
+        return <SignPayloadsScreen wallet={wallet} event={event} />;
+      case MobileWalletAdapterServiceEventType.AuthorizeDapp:
+        return <AuthenticationScreen wallet={wallet} />;
+      default:
+        return <LoadingScreen />;
+    }
+
+    return <LoadingScreen />;
+  }
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+    <SafeAreaProvider>
+      <View>
+        {/* TODO: should put the intent url somewhere else */
+          intentUrl && intentUrl.startsWith("solana-wallet:/v1/associate/local") ?
+            getComponent(event) : <MainScreen />
+        }
+      </View>
+    </SafeAreaProvider>
+    );
 }
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
-
-export default App;
