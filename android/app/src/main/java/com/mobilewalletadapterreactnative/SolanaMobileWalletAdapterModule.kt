@@ -1,5 +1,7 @@
 package com.examplewallet
 
+import android.app.Application
+import android.app.Activity
 import android.net.Uri
 import android.util.Log
 import com.facebook.react.bridge.*
@@ -9,12 +11,17 @@ import com.solana.mobilewalletadapter.walletlib.association.LocalAssociationUri
 import com.solana.mobilewalletadapter.walletlib.authorization.AuthIssuerConfig
 import com.solana.mobilewalletadapter.walletlib.protocol.MobileWalletAdapterConfig
 import com.solana.mobilewalletadapter.walletlib.scenario.*
+import com.solana.mobilewalletadapter.fakewallet.usecase.ClientTrustUseCase
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import java.nio.charset.StandardCharsets
 
 class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {//, CoroutineScope {
 
     // sets the name of the module in React, accessible at ReactNative.NativeModules.WalletLib
     override fun getName() = "WalletLib"
+    private val backgroundScope = CoroutineScope(Dispatchers.IO)
 
     sealed interface MobileWalletAdapterServiceRequest {
         object None : MobileWalletAdapterServiceRequest
@@ -22,7 +29,7 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         object LowPowerNoConnection : MobileWalletAdapterServiceRequest
 
         sealed class MobileWalletAdapterRemoteRequest(open val request: ScenarioRequest) : MobileWalletAdapterServiceRequest
-        data class AuthorizeDapp(override val request: AuthorizeRequest) : MobileWalletAdapterRemoteRequest(request)
+        data class AuthorizeDapp(override val request: AuthorizeRequest, val sourceVerificationState: ClientTrustUseCase.VerificationState) : MobileWalletAdapterRemoteRequest(request)
         data class ReauthorizeDapp(override val request: ReauthorizeRequest) : MobileWalletAdapterRemoteRequest(request)
 
         sealed class SignPayloads(override val request: SignPayloadsRequest) : MobileWalletAdapterRemoteRequest(request)
@@ -37,6 +44,7 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         }
 
     private var scenario: Scenario? = null
+    private var clientTrustUseCase: ClientTrustUseCase? = null
 
     @ReactMethod
     fun log(message: String) {
@@ -66,6 +74,13 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
             callback.invoke("ERROR", "Current implementation of fakewallet does not support remote clients")
             return
         }
+        
+        clientTrustUseCase = ClientTrustUseCase(
+            backgroundScope,
+            currentActivity?.getApplication()?.packageManager!!,
+            currentActivity?.getCallingPackage(),
+            associationUri
+        )
 
         // created a scenario, told it to start (kicks off some threads in the background)
         // we've kept a reference to it in the global state of this module (scenario)
@@ -185,25 +200,76 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         }
 
         override fun onAuthorizeRequest(request: AuthorizeRequest) {
-            this@SolanaMobileWalletAdapterModule.request =
-                MobileWalletAdapterServiceRequest.AuthorizeDapp(request)
+            val clientTrustUseCase = clientTrustUseCase!! // should never be null if we get here
+            val verify = clientTrustUseCase.verifyAuthorizationSourceAsync(request.identityUri)
+
+            backgroundScope.launch {
+                val verificationState = withTimeoutOrNull(SOURCE_VERIFICATION_TIMEOUT_MS) {
+                    verify.await()
+                 } ?: clientTrustUseCase.verificationTimedOut
+                if (verificationState is ClientTrustUseCase.VerificationSucceeded) {
+                    print("debug: success")
+
+                    this@SolanaMobileWalletAdapterModule.request =
+                        MobileWalletAdapterServiceRequest.AuthorizeDapp(request, verificationState)
+                } else {
+                    print("debug: fail")
+
+                    request.completeWithDecline()
+                }
+            }
+
         }
 
         override fun onReauthorizeRequest(request: ReauthorizeRequest) {
             Log.i(TAG, "Reauthorization request: atuo completeing, DO NOT DO THIS IN PRODUCTION")
-//            this@SolanaMobileWalletAdapterModule.request =
-//                MobileWalletAdapterServiceRequest.ReauthorizeDapp(request)
-            request.completeWithReauthorize()
+            val clientTrustUseCase = clientTrustUseCase!! // should never be null if we get here
+            val reverify = clientTrustUseCase.verifyReauthorizationSourceAsync(
+                String(request.authorizationScope, StandardCharsets.UTF_8),
+                request.identityUri
+            )
+            backgroundScope.launch {
+                val verificationState = withTimeoutOrNull(SOURCE_VERIFICATION_TIMEOUT_MS) {
+                    reverify.await()
+                } ?: clientTrustUseCase.verificationTimedOut
+                when (verificationState) {
+                    is ClientTrustUseCase.VerificationInProgress -> throw IllegalStateException()
+                    is ClientTrustUseCase.VerificationSucceeded -> {
+                        Log.i(TAG, "Reauthorization source verification succeeded")
+                        request.completeWithReauthorize()
+                    }
+                    is ClientTrustUseCase.NotVerifiable -> {
+                        Log.i(TAG, "Reauthorization source not verifiable; approving")
+                        request.completeWithReauthorize()
+                    }
+                    is ClientTrustUseCase.VerificationFailed -> {
+                        Log.w(TAG, "Reauthorization source verification failed")
+                        request.completeWithDecline()
+                    }
+                    null -> {
+                        Log.w(TAG, "Timed out waiting for reauthorization source verification")
+                        request.completeWithDecline()
+                    }
+                }
+            }
         }
 
         override fun onSignTransactionsRequest(request: SignTransactionsRequest) {
-            this@SolanaMobileWalletAdapterModule.request =
-                MobileWalletAdapterServiceRequest.SignTransactions(request)
+            if (verifyPrivilegedMethodSource(request)) {
+                this@SolanaMobileWalletAdapterModule.request =
+                    MobileWalletAdapterServiceRequest.SignTransactions(request)
+            } else {
+                request.completeWithDecline()
+            }         
         }
 
         override fun onSignMessagesRequest(request: SignMessagesRequest) {
-            this@SolanaMobileWalletAdapterModule.request =
-                MobileWalletAdapterServiceRequest.SignMessages(request)
+            if (verifyPrivilegedMethodSource(request)) {
+                this@SolanaMobileWalletAdapterModule.request =
+                    MobileWalletAdapterServiceRequest.SignMessages(request)
+            } else {
+                request.completeWithDecline()
+            }    
         }
 
         override fun onSignAndSendTransactionsRequest(request: SignAndSendTransactionsRequest) {
@@ -211,8 +277,10 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         }
 
         private fun verifyPrivilegedMethodSource(request: VerifiableIdentityRequest): Boolean {
-            // TODO
-            return true
+            return clientTrustUseCase!!.verifyPrivilegedMethodSource(
+                String(request.authorizationScope, StandardCharsets.UTF_8),
+                request.identityUri
+            )
         }
 
         override fun onDeauthorizedEvent(event: DeauthorizedEvent) {
@@ -228,5 +296,7 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
 
     companion object {
         private val TAG = SolanaMobileWalletAdapterModule::class.simpleName
+        private const val SOURCE_VERIFICATION_TIMEOUT_MS = 3000L
+        private const val LOW_POWER_NO_CONNECTION_TIMEOUT_MS = 3000L
     }
 }

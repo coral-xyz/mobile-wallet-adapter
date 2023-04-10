@@ -99,8 +99,6 @@ export default function App() {
       default:
         return <LoadingScreen />;
     }
-
-    return <LoadingScreen />;
   }
 
   const shouldRenderBottomsheet: boolean = intentUrl !== null && intentUrl.startsWith("solana-wallet:/v1/associate/local")

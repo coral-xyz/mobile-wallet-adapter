@@ -155,6 +155,8 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.7.0"
     implementation "com.solanamobile:mobile-wallet-adapter-walletlib:1.1.0"
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
+    implementation 'com.solanamobile:digital-asset-links-android:1.0.2'
 
     debugImplementation("com.facebook.flipper:flipper:${FLIPPER_VERSION}")
     debugImplementation("com.facebook.flipper:flipper-network-plugin:${FLIPPER_VERSION}") {
