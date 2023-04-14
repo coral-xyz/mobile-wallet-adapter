@@ -44,7 +44,6 @@ export default function AuthenticationScreen() {
         <Button
           style={styles.actionButton}
           onPress={() => {
-            console.log('publickey in bytes: ' + wallet.publicKey.toBytes());
             SolanaMobileWalletAdapter.authorizeDapp(
               Array.from(wallet.publicKey.toBytes()),
             );

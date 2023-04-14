@@ -43,7 +43,6 @@ const signPayload = (wallet: Keypair, event: SignPayloadEvent) => {
   let signedPayloads;
   switch (event.type) {
     case MobileWalletAdapterServiceEventType.SignTransactions:
-      console.log(event.payloads);
       signedPayloads = event.payloads.map((numArray, index) => {
         try {
           return Array.from(
@@ -71,12 +70,10 @@ const signPayload = (wallet: Keypair, event: SignPayloadEvent) => {
 
   // If all valid, then call complete request
   if (!valid.includes(false)) {
-    console.log('complete case');
     SolanaMobileWalletAdapter.completeSignPayloadsRequest(
       Array.from(signedPayloads),
     );
   } else {
-    console.log('invalid case');
     SolanaMobileWalletAdapter.completeWithInvalidPayloads(valid);
   }
 };

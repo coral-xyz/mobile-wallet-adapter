@@ -199,7 +199,7 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         }
 
         override fun onReauthorizeRequest(request: ReauthorizeRequest) {
-            Log.i(TAG, "Reauthorization request: atuo completeing, DO NOT DO THIS IN PRODUCTION")
+            Log.i(TAG, "Reauthorization request: auto completing, DO NOT DO THIS IN PRODUCTION")
 //            this@SolanaMobileWalletAdapterModule.request =
 //                MobileWalletAdapterServiceRequest.ReauthorizeDapp(request)
             request.completeWithReauthorize()
