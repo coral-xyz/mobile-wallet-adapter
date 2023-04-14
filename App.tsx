@@ -15,6 +15,7 @@ import AuthenticationScreen from './screens/AuthenticationScreen';
 import SignPayloadsScreen from './screens/SignPayloadsScreen';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import WalletProvider from './components/WalletProvider';
+import SignAndSendTransactionsScreen from './screens/SignAndSendTransactionsScreen';
 
 function initMWA(url: string) {
   NativeModules.WalletLib.createScenario(
@@ -66,6 +67,7 @@ const useWallet = () => {
 export enum MobileWalletAdapterServiceEventType {
   SignTransactions = 'SIGN_TRANSACTIONS',
   SignMessages = 'SIGN_MESSAGES',
+  SignAndSendTransactions = 'SIGN_AND_SEND_TRANSACTIONS',
   SessionTerminated = 'SESSION_TERMINATED',
   LowPowerNoConnection = 'LOW_POWER_NO_CONNECTION',
   AuthorizeDapp = 'AUTHORIZE_DAPP',
@@ -107,6 +109,8 @@ export default function App() {
 
   function getComponent(event) {
     switch (event?.type) {
+      case MobileWalletAdapterServiceEventType.SignAndSendTransactions:
+        return <SignAndSendTransactionsScreen event={event} />;
       case MobileWalletAdapterServiceEventType.SignTransactions:
       case MobileWalletAdapterServiceEventType.SignMessages:
         return <SignPayloadsScreen event={event} />;
