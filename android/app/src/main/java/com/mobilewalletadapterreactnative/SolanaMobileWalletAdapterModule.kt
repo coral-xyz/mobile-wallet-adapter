@@ -106,11 +106,20 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
 
     @ReactMethod
     fun completeSignPayloadsRequest(signedPayloads: ReadableArray) {
-        Log.d(TAG, "completeSignPaylaodsRequest: signedPayloads = ")
+        // signedPayloads is an Array of Number Arrays, with each inner Array representing
+        // the bytes of a signed payload.
+        Log.d(TAG, "completeSignPayloadsRequest: signedPayloads = $signedPayloads")
         (request as? MobileWalletAdapterServiceRequest.SignPayloads)?.request?.let { signRequest ->
-            // temp
-            val signedPayloads = signRequest.payloads
-            signRequest.completeWithSignedPayloads(signedPayloads)
+            // Convert ReadableArray to Array of Number Arrays
+            val payloadNumArrays = Arguments.toList(signedPayloads) as List<List<Number>>
+
+            // Convert each Number Array into a ByteArray
+            val payloadByteArrays = payloadNumArrays.map { numArray ->
+                ByteArray(numArray.size) { numArray[it].toByte() }
+            }.toTypedArray()
+
+            Log.d(TAG, "signedPayload ByteArrays = $payloadByteArrays")
+            signRequest.completeWithSignedPayloads(payloadByteArrays)
         }
     }
 
