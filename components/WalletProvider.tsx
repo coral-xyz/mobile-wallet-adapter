@@ -42,6 +42,8 @@ const WalletProvider: React.FC<WalletProviderProps> = ({children}) => {
 
   useEffect(() => {
     const generateKeypair = async () => {
+      // For testing purposes, we are storing the keypair in async-storage. This is unsafe
+      // and should not be replicated for production purposes.
       try {
         const storedKeypair = await AsyncStorage.getItem(ASYNC_STORAGE_KEY);
         let keypair: Keypair;
