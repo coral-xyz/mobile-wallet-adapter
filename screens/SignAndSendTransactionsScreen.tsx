@@ -66,9 +66,12 @@ const signAndSendTransactions = async (
       signedTransactions,
       event.minContextSlot ? Number(event.minContextSlot) : undefined,
     );
+    console.log(signatures);
     SolanaMobileWalletAdapter.completeWithSignatures(signatures);
   } catch (e) {
-    SolanaMobileWalletAdapter.completeWithInvalidSignatures(valid);
+    console.log('Error case: ');
+    console.log(e);
+    SolanaMobileWalletAdapter.completeWithInvalidSignatures([false]);
   }
 };
 
@@ -83,8 +86,6 @@ export default function SignAndSendTransactionsScreen({event}: Props) {
     throw new Error('Wallet is null or undefined');
   }
 
-  // there has got to be a better way to reset the state,
-  // so it alwyas shows on render. I am react n00b
   useEffect(() => {
     setIsVisible(true);
   });
@@ -96,8 +97,9 @@ export default function SignAndSendTransactionsScreen({event}: Props) {
       <View style={styles.buttonGroup}>
         <Button
           style={styles.actionButton}
-          onPress={() => {
-            signAndSendTransactions(wallet, event);
+          onPress={async () => {
+            await signAndSendTransactions(wallet, event);
+            console.log('viz false');
             setIsVisible(false);
           }}
           mode="contained">

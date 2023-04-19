@@ -3,6 +3,7 @@ import {
   VersionedTransaction,
   TransactionSignature,
   SendOptions,
+  clusterApiUrl,
 } from '@solana/web3.js';
 import {decode} from 'bs58';
 
@@ -13,23 +14,24 @@ export class SendTransactionsUseCase {
   static async sendSignedTransactions(
     signedTransactions: Array<Uint8Array>,
     minContextSlot: number | undefined,
-  ): Promise<Uint8Array[]> {
-    const connection = new Connection(
-      'https://api.devnet.solana.com',
-      'confirmed',
-    );
-    const signatures: Uint8Array[] = await Promise.all(
+  ): Promise<number[][]> {
+    const connection = new Connection(clusterApiUrl('testnet'), 'finalized');
+    const signatures: number[][] = await Promise.all(
       signedTransactions.map(async byteArray => {
         const transaction: VersionedTransaction =
           VersionedTransaction.deserialize(byteArray);
 
         const sendOptions: SendOptions = {
           minContextSlot: minContextSlot,
+          preflightCommitment: 'processed',
         };
+        console.log(transaction);
         const signature: TransactionSignature =
           await connection.sendTransaction(transaction, sendOptions); // here
-
-        return decode(signature);
+        const decoded = decode(signature);
+        console.log('decoded');
+        console.log(decoded);
+        return Array.from(decoded);
       }),
     );
 

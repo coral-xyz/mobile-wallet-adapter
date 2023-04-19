@@ -147,19 +147,29 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
             signRequest.completeWithInvalidPayloads(validBoolArray)
         }
     }
-
+    
     @ReactMethod
     fun completeWithSignatures(signaturesArray: ReadableArray) {
         Log.d(TAG, "completeWithSignatures: signatures = $signaturesArray")
-        (request as? MobileWalletAdapterServiceRequest.SignAndSendTransactions)?.request?.let { signRequest ->
+        (request as? MobileWalletAdapterServiceRequest.SignAndSendTransactions)?.request?.let { signAndSendRequest ->
             val signaturesNumArray = Arguments.toList(signaturesArray) as List<List<Number>>
 
             // Convert each Number Array into a ByteArray
             val signaturesByteArrays = signaturesNumArray.map { numArray ->
                 ByteArray(numArray.size) { numArray[it].toByte() }
             }.toTypedArray()
+        Log.d(TAG, "send signatures")
 
-            signRequest.completeWithSignatures(signaturesByteArrays)
+            signAndSendRequest.completeWithSignatures(signaturesByteArrays)
+        }
+    }
+
+    @ReactMethod
+    fun completeWithInvalidSignatures(validArray: ReadableArray) {
+        Log.d(TAG, "completeWithInvalidSignatures: validArray = $validArray")
+        val validBoolArray = BooleanArray(validArray.size()) { index -> validArray.getBoolean(index) }
+        (request as? MobileWalletAdapterServiceRequest.SignAndSendTransactions)?.request?.let { signAndSendRequest ->
+            signAndSendRequest.completeWithInvalidSignatures(validBoolArray)
         }
     }
 
