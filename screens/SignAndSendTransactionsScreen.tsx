@@ -4,7 +4,10 @@ import {NativeModules, Platform, StyleSheet, View} from 'react-native';
 import {Button, Divider, Text} from 'react-native-paper';
 import {MobileWalletAdapterServiceEventType} from '../App';
 import {SolanaSigningUseCase} from '../utils/SolanaSigningUseCase';
-import {SendTransactionsUseCase} from '../utils/SendTransactionsUseCase';
+import {
+  SendTransactionsUseCase,
+  SendTransactionsError,
+} from '../utils/SendTransactionsUseCase';
 import {useWallet} from '../components/WalletProvider';
 
 import FadeInView from './../components/FadeInView';
@@ -66,12 +69,14 @@ const signAndSendTransactions = async (
       signedTransactions,
       event.minContextSlot ? Number(event.minContextSlot) : undefined,
     );
-    console.log(signatures);
     SolanaMobileWalletAdapter.completeWithSignatures(signatures);
-  } catch (e) {
-    console.log('Error case: ');
-    console.log(e);
-    SolanaMobileWalletAdapter.completeWithInvalidSignatures([false]);
+  } catch (error) {
+    console.log(`Error during signAndSendTransactions: ${error}`);
+    if (error instanceof SendTransactionsError) {
+      SolanaMobileWalletAdapter.completeWithInvalidSignatures(error.valid);
+    } else {
+      throw error;
+    }
   }
 };
 

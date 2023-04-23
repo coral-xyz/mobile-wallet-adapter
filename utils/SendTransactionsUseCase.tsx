@@ -7,6 +7,15 @@ import {
 } from '@solana/web3.js';
 import {decode} from 'bs58';
 
+export class SendTransactionsError extends Error {
+  valid: boolean[];
+  constructor(message: string, valid: boolean[]) {
+    super(message);
+    this.name = 'SendTransactionErrors';
+    this.valid = valid;
+  }
+}
+
 export class SendTransactionsUseCase {
   static readonly SIGNATURE_LEN = 64;
   static readonly PUBLIC_KEY_LEN = 32;
@@ -16,25 +25,35 @@ export class SendTransactionsUseCase {
     minContextSlot: number | undefined,
   ): Promise<number[][]> {
     const connection = new Connection(clusterApiUrl('testnet'), 'finalized');
-    const signatures: number[][] = await Promise.all(
+    const signatures: (number[] | null)[] = await Promise.all(
       signedTransactions.map(async byteArray => {
-        const transaction: VersionedTransaction =
-          VersionedTransaction.deserialize(byteArray);
+        // Try sending a transaction.
+        try {
+          const transaction: VersionedTransaction =
+            VersionedTransaction.deserialize(byteArray);
 
-        const sendOptions: SendOptions = {
-          minContextSlot: minContextSlot,
-          preflightCommitment: 'processed',
-        };
-        console.log(transaction);
-        const signature: TransactionSignature =
-          await connection.sendTransaction(transaction, sendOptions); // here
-        const decoded = decode(signature);
-        console.log('decoded');
-        console.log(decoded);
-        return Array.from(decoded);
+          const sendOptions: SendOptions = {
+            minContextSlot: minContextSlot,
+            preflightCommitment: 'processed',
+          };
+          const signature: TransactionSignature =
+            await connection.sendTransaction(transaction, sendOptions); // here
+          const decoded = decode(signature);
+          return Array.from(decoded);
+        } catch (error) {
+          console.log('Failed sending transaction ' + error);
+          return null;
+        }
       }),
     );
 
-    return signatures;
+    if (signatures.includes(null)) {
+      const valid = signatures.map(signature => {
+        return signature !== null;
+      });
+      throw new SendTransactionsError('Failed sending transactions', valid);
+    }
+
+    return signatures as number[][];
   }
 }
