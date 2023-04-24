@@ -1,5 +1,5 @@
-import { Keypair, VersionedTransaction, Signer, VersionedMessage } from '@solana/web3.js';
-import {sign} from '@solana/web3.js/src/utils/ed25519'
+import {Keypair, VersionedTransaction, Signer} from '@solana/web3.js';
+import {sign} from '@solana/web3.js/src/utils/ed25519';
 
 export class SolanaSigningUseCase {
   static readonly SIGNATURE_LEN = 64;
@@ -7,23 +7,22 @@ export class SolanaSigningUseCase {
 
   static signTransaction(
     transactionByteArray: Uint8Array,
-    keypair: Keypair
+    keypair: Keypair,
   ): Uint8Array {
-    const transaction: VersionedTransaction = VersionedTransaction.deserialize(transactionByteArray)
+    const transaction: VersionedTransaction =
+      VersionedTransaction.deserialize(transactionByteArray);
     const signer: Signer = {
-        publicKey: keypair.publicKey,
-        secretKey: keypair.secretKey,
-      };
-
-    transaction.sign([signer])
-    return transaction.serialize()
+      publicKey: keypair.publicKey,
+      secretKey: keypair.secretKey,
+    };
+    transaction.sign([signer]);
+    return transaction.serialize();
   }
 
   static signMessage(
     messageByteArray: Uint8Array,
-    keypair: Keypair
+    keypair: Keypair,
   ): Uint8Array {
-    const message: VersionedMessage = VersionedMessage.deserialize(messageByteArray)
-    return sign(messageByteArray, keypair.secretKey.slice(0, 32))
+    return sign(messageByteArray, keypair.secretKey.slice(0, 32));
   }
 }

@@ -9,6 +9,7 @@ import com.solana.mobilewalletadapter.walletlib.association.LocalAssociationUri
 import com.solana.mobilewalletadapter.walletlib.authorization.AuthIssuerConfig
 import com.solana.mobilewalletadapter.walletlib.protocol.MobileWalletAdapterConfig
 import com.solana.mobilewalletadapter.walletlib.scenario.*
+import com.solana.mobilewalletadapter.common.ProtocolContract
 
 class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {//, CoroutineScope {
@@ -28,6 +29,10 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         sealed class SignPayloads(override val request: SignPayloadsRequest) : MobileWalletAdapterRemoteRequest(request)
         data class SignTransactions(override val request: SignTransactionsRequest) : SignPayloads(request)
         data class SignMessages(override val request: SignMessagesRequest) : SignPayloads(request)
+        data class SignAndSendTransactions(
+            override val request: SignAndSendTransactionsRequest,
+            val endpointUri: Uri,
+        ) : MobileWalletAdapterRemoteRequest(request)
     }
 
     private var request: MobileWalletAdapterServiceRequest? = null
@@ -37,6 +42,17 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         }
 
     private var scenario: Scenario? = null
+
+    private fun clusterToRpcUri(cluster: String?): Uri {
+        return when (cluster) {
+            ProtocolContract.CLUSTER_MAINNET_BETA ->
+                Uri.parse("https://api.mainnet-beta.solana.com")
+            ProtocolContract.CLUSTER_DEVNET ->
+                Uri.parse("https://api.devnet.solana.com")
+            else ->
+                Uri.parse("https://api.testnet.solana.com")
+        }
+    }
 
     @ReactMethod
     fun log(message: String) {
@@ -125,10 +141,35 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
 
     @ReactMethod
     fun completeWithInvalidPayloads(validArray: ReadableArray) {
-        Log.d(TAG, "completeSignPaylaodsRequest: signedPayloads = ")
+        Log.d(TAG, "completeWithInvalidPayloads: validArray = $validArray")
         val validBoolArray = BooleanArray(validArray.size()) { index -> validArray.getBoolean(index) }
         (request as? MobileWalletAdapterServiceRequest.SignPayloads)?.request?.let { signRequest ->
             signRequest.completeWithInvalidPayloads(validBoolArray)
+        }
+    }
+    
+    @ReactMethod
+    fun completeWithSignatures(signaturesArray: ReadableArray) {
+        Log.d(TAG, "completeWithSignatures: signatures = $signaturesArray")
+        (request as? MobileWalletAdapterServiceRequest.SignAndSendTransactions)?.request?.let { signAndSendRequest ->
+            val signaturesNumArray = Arguments.toList(signaturesArray) as List<List<Number>>
+
+            // Convert each Number Array into a ByteArray
+            val signaturesByteArrays = signaturesNumArray.map { numArray ->
+                ByteArray(numArray.size) { numArray[it].toByte() }
+            }.toTypedArray()
+        Log.d(TAG, "send signatures")
+
+            signAndSendRequest.completeWithSignatures(signaturesByteArrays)
+        }
+    }
+
+    @ReactMethod
+    fun completeWithInvalidSignatures(validArray: ReadableArray) {
+        Log.d(TAG, "completeWithInvalidSignatures: validArray = $validArray")
+        val validBoolArray = BooleanArray(validArray.size()) { index -> validArray.getBoolean(index) }
+        (request as? MobileWalletAdapterServiceRequest.SignAndSendTransactions)?.request?.let { signAndSendRequest ->
+            signAndSendRequest.completeWithInvalidSignatures(validBoolArray)
         }
     }
 
@@ -164,6 +205,15 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
                         Arguments.fromArray(it.map { it.toInt() }.toIntArray())
                     }.forEach { pushArray(it) }
                 })
+            }
+            is MobileWalletAdapterServiceRequest.SignAndSendTransactions -> Arguments.createMap().apply {
+                putString("type", "SIGN_AND_SEND_TRANSACTIONS")
+                putArray("payloads", Arguments.createArray().apply {
+                    request.request.payloads.map {
+                        Arguments.fromArray(it.map { it.toInt() }.toIntArray())
+                    }.forEach { pushArray(it) }
+                })
+                putString("minContextSlot", request.request.minContextSlot?.toString())
             }
         }
 
@@ -216,7 +266,9 @@ class SolanaMobileWalletAdapterModule(val reactContext: ReactApplicationContext)
         }
 
         override fun onSignAndSendTransactionsRequest(request: SignAndSendTransactionsRequest) {
-            // TODO
+            val endpointUri = clusterToRpcUri(request.cluster)
+            this@SolanaMobileWalletAdapterModule.request =
+                MobileWalletAdapterServiceRequest.SignAndSendTransactions(request, endpointUri)
         }
 
         private fun verifyPrivilegedMethodSource(request: VerifiableIdentityRequest): Boolean {

@@ -4,6 +4,10 @@ import {NativeModules, Platform, StyleSheet, View} from 'react-native';
 import {Button, Divider, Text} from 'react-native-paper';
 import {MobileWalletAdapterServiceEventType} from '../App';
 import {SolanaSigningUseCase} from '../utils/SolanaSigningUseCase';
+import {
+  SendTransactionsUseCase,
+  SendTransactionsError,
+} from '../utils/SendTransactionsUseCase';
 import {useWallet} from '../components/WalletProvider';
 
 import FadeInView from './../components/FadeInView';
@@ -24,64 +28,61 @@ const SolanaMobileWalletAdapter =
         },
       );
 
-type SignPayloadEvent = {
-  type:
-    | MobileWalletAdapterServiceEventType.SignMessages
-    | MobileWalletAdapterServiceEventType.SignTransactions;
+type SignAndSendTransactionsEvent = {
+  type: MobileWalletAdapterServiceEventType.SignAndSendTransactions;
   payloads: number[][];
+  minContextSlot: string;
 };
 
 type Props = Readonly<{
-  event: SignPayloadEvent;
+  event: SignAndSendTransactionsEvent;
 }>;
 
-const signPayloads = (wallet: Keypair, event: SignPayloadEvent) => {
+const signAndSendTransactions = async (
+  wallet: Keypair,
+  event: SignAndSendTransactionsEvent,
+) => {
   const valid: boolean[] = event.payloads.map(_ => {
     return true;
   });
-
-  let signedPayloads;
-  switch (event.type) {
-    case MobileWalletAdapterServiceEventType.SignTransactions:
-      signedPayloads = event.payloads.map((numArray, index) => {
-        try {
-          return Array.from(
-            SolanaSigningUseCase.signTransaction(
-              new Uint8Array(numArray),
-              wallet,
-            ),
-          );
-        } catch (e) {
-          NativeModules.WalletLib.log(
-            `Transaction ${index} is not a valid Solana transaction`,
-          );
-          valid[index] = false;
-          return new Uint8Array([]);
-        }
-      });
-      break;
-    case MobileWalletAdapterServiceEventType.SignMessages:
-      signedPayloads = event.payloads.map(numArray => {
-        return Array.from(
-          SolanaSigningUseCase.signMessage(new Uint8Array(numArray), wallet),
-        );
-      });
-      break;
+  let signedTransactions = event.payloads.map((numArray, index) => {
+    try {
+      return SolanaSigningUseCase.signTransaction(
+        new Uint8Array(numArray),
+        wallet,
+      );
+    } catch (e) {
+      NativeModules.WalletLib.log(
+        `Transaction ${index} is not a valid Solana transaction`,
+      );
+      valid[index] = false;
+      return new Uint8Array([]);
+    }
+  });
+  // If invalid, then fail the request
+  if (valid.includes(false)) {
+    SolanaMobileWalletAdapter.completeWithInvalidSignatures(valid);
+    return;
   }
-
-  // If all valid, then call complete request
-  if (!valid.includes(false)) {
-    SolanaMobileWalletAdapter.completeSignPayloadsRequest(
-      Array.from(signedPayloads),
+  try {
+    const signatures = await SendTransactionsUseCase.sendSignedTransactions(
+      signedTransactions,
+      event.minContextSlot ? Number(event.minContextSlot) : undefined,
     );
-  } else {
-    SolanaMobileWalletAdapter.completeWithInvalidPayloads(valid);
+    SolanaMobileWalletAdapter.completeWithSignatures(signatures);
+  } catch (error) {
+    console.log(`Error during signAndSendTransactions: ${error}`);
+    if (error instanceof SendTransactionsError) {
+      SolanaMobileWalletAdapter.completeWithInvalidSignatures(error.valid);
+    } else {
+      throw error;
+    }
   }
 };
 
 // this view is basically the same as AuthenticationScreen.
 // Should either combine them or pull common code to base abstraction
-export default function SignPayloadsScreen({event}: Props) {
+export default function SignAndSendTransactionsScreen({event}: Props) {
   const [visible, setIsVisible] = useState(true);
   const {wallet} = useWallet();
 
@@ -90,21 +91,20 @@ export default function SignPayloadsScreen({event}: Props) {
     throw new Error('Wallet is null or undefined');
   }
 
-  // there has got to be a better way to reset the state,
-  // so it alwyas shows on render. I am react n00b
   useEffect(() => {
     setIsVisible(true);
   });
 
   return (
     <FadeInView style={styles.container} shown={visible}>
-      <Text variant="bodyLarge">Sign The Transaction Things</Text>
+      <Text variant="bodyLarge">Sign and send transactions</Text>
       <Divider style={styles.spacer} />
       <View style={styles.buttonGroup}>
         <Button
           style={styles.actionButton}
-          onPress={() => {
-            signPayloads(wallet, event);
+          onPress={async () => {
+            await signAndSendTransactions(wallet, event);
+            console.log('viz false');
             setIsVisible(false);
           }}
           mode="contained">
